@@ -259,106 +259,100 @@ elif menu == "Cadastro Manual":
             salvar_dados()
             st.success("Salvo!")
 
-# --- TELA DE SORTEIO (PAINEL HTML/CSS INTEGRADO ULTRAPACK) ---
-# --- TELA DE SORTEIO (PAINEL HTML/CSS COM CLIQUE DIRETO) ---
+# --- TELA DE SORTEIO (GRADE NATIVA ULTRACOMPACTA 5x15) ---
 elif menu == "Acompanhar Sorteio":
+    # CSS focado em quebrar as restrições padrão do Streamlit no mobile
+    st.markdown(
+        """
+        <style>
+        /* Desativa margens laterais da página */
+        .block-container {
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
+            padding-top: 1rem !important;
+            padding-bottom: 1rem !important;
+            max-width: 100vw !important;
+        }
+
+        /* Força as colunas a ficarem lado a lado sem quebrar linha */
+        div[data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 2px !important;
+            margin-bottom: 2px !important;
+        }
+
+        div[data-testid="column"] {
+            width: 20% !important;
+            flex: 1 1 20% !important;
+            min-width: 0px !important;
+            padding: 0px !important;
+        }
+
+        /* Reduz os botões do Streamlit a pequenos quadradinhos */
+        div.stButton > button {
+            width: 100% !important;
+            height: 28px !important;
+            min-height: 28px !important;
+            max-height: 28px !important;
+            padding: 0px !important;
+            font-size: 12px !important;
+            font-weight: bold !important;
+            margin: 0px !important;
+            border-radius: 3px !important;
+            line-height: 28px !important;
+        }
+
+        /* Esconde elementos internos desnecessários para economizar espaço */
+        div.stButton > button p {
+            font-size: 12px !important;
+            line-height: 28px !important;
+            margin: 0 !important;
+        }
+        </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
     st.subheader("🎯 Painel de Sorteio")
-    st.caption("Toque diretamente no número para marcar ou desmarcar:")
+    st.caption("Toque no número para marcar ou desmarcar:")
 
-    # Captura evento de clique enviado pelo HTML
-    params = st.query_params
-    if "clique_num" in params:
-        num_clicado = int(params["clique_num"])
-        # Remove o parâmetro da URL para não repetir em refresh
-        st.query_params.clear()
+    # Cabeçalho B - I - N - G - O
+    letras = ["B", "I", "N", "G", "O"]
+    cols_header = st.columns(5)
+    for idx, letra in enumerate(letras):
+        cols_header[idx].markdown(
+            f"<div style='text-align:center; font-weight:bold; color:#FF4B4B; background-color:#262730; border-radius:3px; padding:2px 0;'>{letra}</div>",
+            unsafe_allow_html=True,
+        )
 
-        if num_clicado in st.session_state.sorteados:
-            st.session_state.sorteados.remove(num_clicado)
-            for c_nome, orig in st.session_state.cartelas_originais.items():
-                if num_clicado in orig:
-                    st.session_state.cartelas[c_nome].add(num_clicado)
-        else:
-            st.session_state.sorteados.append(num_clicado)
-            for c_nome in st.session_state.cartelas:
-                st.session_state.cartelas[c_nome].discard(num_clicado)
+    st.write("")
 
-        salvar_dados()
-        st.rerun()
-
-    sorteados_set = set(st.session_state.sorteados)
-
-    # HTML + JavaScript para lidar com o clique direto nos quadradinhos
-    html_grid = """
-    <style>
-        .bingo-board {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 3px;
-            width: 100%;
-            max-width: 400px;
-            margin: 0 auto;
-            font-family: sans-serif;
-            user-select: none;
-        }
-        .header-cell {
-            background-color: #FF4B4B;
-            color: white;
-            font-weight: bold;
-            text-align: center;
-            padding: 6px 0;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .num-cell {
-            background-color: #262730;
-            color: #FAFAFA;
-            text-align: center;
-            padding: 8px 0;
-            border-radius: 3px;
-            font-size: 13px;
-            font-weight: bold;
-            border: 1px solid #363940;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .num-cell:active {
-            transform: scale(0.95);
-        }
-        .num-cell.active {
-            background-color: #FF4B4B;
-            color: white;
-            border-color: #FF2222;
-            box-shadow: 0 0 5px rgba(255, 75, 75, 0.5);
-        }
-    </style>
-
-    <script>
-    function alternarPedra(num) {
-        // Envia o número clicado para a URL da aplicação Streamlit
-        window.parent.postMessage({
-            type: 'streamlit:setQueryParams',
-            queryParams: { clique_num: num }
-        }, '*');
-    }
-    </script>
-
-    <div class="bingo-board">
-        <div class="header-cell">B</div>
-        <div class="header-cell">I</div>
-        <div class="header-cell">N</div>
-        <div class="header-cell">G</div>
-        <div class="header-cell">O</div>
-    """
-
+    # Matriz 5x15 de botões nativos clicáveis
     for i in range(15):
+        cols = st.columns(5)
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
-        for n in numeros_linha:
-            is_active = "active" if n in sorteados_set else ""
-            html_grid += f'<div class="num-cell {is_active}" onclick="alternarPedra({n})">{n}</div>'
 
-    html_grid += "</div>"
+        for col_idx, n in enumerate(numeros_linha):
+            ja_sorteado = n in st.session_state.sorteados
+            tipo_botao = "primary" if ja_sorteado else "secondary"
 
-    components.html(html_grid, height=530, scrolling=False)
+            if cols[col_idx].button(
+                str(n), key=f"sorteio_{n}", type=tipo_botao, use_container_width=True
+            ):
+                if ja_sorteado:
+                    st.session_state.sorteados.remove(n)
+                    for c_nome, orig in st.session_state.cartelas_originais.items():
+                        if n in orig:
+                            st.session_state.cartelas[c_nome].add(n)
+                else:
+                    st.session_state.sorteados.append(n)
+                    for c_nome in st.session_state.cartelas:
+                        st.session_state.cartelas[c_nome].discard(n)
+
+                salvar_dados()
+                st.rerun()
 
     st.divider()
 
