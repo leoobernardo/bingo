@@ -4,7 +4,6 @@ import cv2
 import numpy as np
 from PIL import Image
 import streamlit as st
-import streamlit.components.v1 as components
 
 ARQUIVO_DADOS = "bingo_dados.json"
 
@@ -259,77 +258,60 @@ elif menu == "Cadastro Manual":
             salvar_dados()
             st.success("Salvo!")
 
-# --- TELA DE SORTEIO (GRADE NATIVA ULTRACOMPACTA 5x15) ---
+# --- TELA DE SORTEIO (SELEÇÃO DIRETA COMPACTA) ---
 elif menu == "Acompanhar Sorteio":
-    # CSS focado em quebrar as restrições padrão do Streamlit no mobile
-    st.markdown(
+    st.subheader("🎯 Painel de Sorteio")
+
+    # Injeção de CSS global forçando botões minúsculos em grelha
+    st.html(
         """
         <style>
-        /* Desativa margens laterais da página */
-        .block-container {
-            padding-left: 0.2rem !important;
-            padding-right: 0.2rem !important;
-            padding-top: 1rem !important;
-            padding-bottom: 1rem !important;
-            max-width: 100vw !important;
+        /* Reduz padding e margens globais */
+        .stAppHeader, .stMainBlockContainer {
+            padding-left: 2px !important;
+            padding-right: 2px !important;
+            padding-top: 2rem !important;
         }
 
-        /* Força as colunas a ficarem lado a lado sem quebrar linha */
-        div[data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
+        /* Garante 5 colunas estritas na horizontal */
+        [data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
             gap: 2px !important;
             margin-bottom: 2px !important;
         }
 
-        div[data-testid="column"] {
-            width: 20% !important;
-            flex: 1 1 20% !important;
+        [data-testid="column"] {
+            width: 100% !important;
             min-width: 0px !important;
             padding: 0px !important;
         }
 
-        /* Reduz os botões do Streamlit a pequenos quadradinhos */
-        div.stButton > button {
-            width: 100% !important;
-            height: 28px !important;
-            min-height: 28px !important;
-            max-height: 28px !important;
+        /* Torna os botões minúsculos como quadradinhos */
+        button[kind="secondary"], button[kind="primary"] {
             padding: 0px !important;
-            font-size: 12px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            font-size: 11px !important;
             font-weight: bold !important;
             margin: 0px !important;
-            border-radius: 3px !important;
-            line-height: 28px !important;
-        }
-
-        /* Esconde elementos internos desnecessários para economizar espaço */
-        div.stButton > button p {
-            font-size: 12px !important;
-            line-height: 28px !important;
-            margin: 0 !important;
+            border-radius: 2px !important;
         }
         </style>
-    """,
-        unsafe_allow_html=True,
+        """
     )
 
-    st.subheader("🎯 Painel de Sorteio")
-    st.caption("Toque no número para marcar ou desmarcar:")
-
     # Cabeçalho B - I - N - G - O
-    letras = ["B", "I", "N", "G", "O"]
     cols_header = st.columns(5)
-    for idx, letra in enumerate(letras):
+    for idx, letra in enumerate(["B", "I", "N", "G", "O"]):
         cols_header[idx].markdown(
-            f"<div style='text-align:center; font-weight:bold; color:#FF4B4B; background-color:#262730; border-radius:3px; padding:2px 0;'>{letra}</div>",
+            f"<div style='text-align:center; font-weight:bold; background-color:#FF4B4B; color:white; border-radius:2px; font-size:12px;'>{letra}</div>",
             unsafe_allow_html=True,
         )
 
     st.write("")
 
-    # Matriz 5x15 de botões nativos clicáveis
+    # Matriz 5x15 de botões nativos
     for i in range(15):
         cols = st.columns(5)
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
@@ -356,7 +338,6 @@ elif menu == "Acompanhar Sorteio":
 
     st.divider()
 
-    # Ranking das cartelas
     st.subheader("🔥 Cartelas Armadas (Faltam ≤ 3)")
 
     cartelas_armadas = [
