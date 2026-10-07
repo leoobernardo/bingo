@@ -16,7 +16,7 @@ REGRAS_COLUNAS = {
 
 # --- CONFIGURAÇÃO DA PÁGINA STREAMLIT ---
 st.set_page_config(
-    page_config_title="Bingo 75 Vision", page_icon="🎲", layout="centered"
+    page_title="Bingo 75 Vision", page_icon="🎲", layout="centered"
 )
 
 
