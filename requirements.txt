@@ -1,2 +1,5 @@
 streamlit
-google-genai
+easyocr
+opencv-python-headless
+numpy
+Pillow
