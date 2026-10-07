@@ -72,53 +72,70 @@ if "cartelas" not in st.session_state:
 
 # --- FUNÇÃO DE LEITURA COM GEMINI VISION ---
 def ler_cartela_com_ia(imagem_bytes):
-    """Envia a foto para a API do Gemini processar os números da cartela."""
-    try:
-        api_key = os.environ.get(
-            "GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "")
+    """Envia a foto para a API do Gemini processar os números da cartela com fallback total."""
+    api_key = os.environ.get(
+        "GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "")
+    )
+    if not api_key:
+        st.error(
+            "Chave API do Gemini não configurada! Configure a variável GEMINI_API_KEY nos Secrets do Streamlit."
         )
-        if not api_key:
-            st.error(
-                "Chave API do Gemini não configurada! Configure a variável GEMINI_API_KEY."
-            )
-            return None
-
-        # Força a versão v1 da API no cliente
-        client = genai.Client(
-            api_key=api_key, http_options=types.HttpOptions(api_version="v1")
-        )
-
-        prompt = """
-        Examine esta imagem de uma cartela de bingo tradicional de 75 bolas.
-        A cartela possui 5 colunas: B (1-15), I (16-30), N (31-45), G (46-60), O (61-75).
-        Extraia exatamente os 5 números presentes em cada coluna.
-        Retorne estritamente um JSON no seguinte formato válido, sem formatação markdown em volta:
-        {
-            "B": [num1, num2, num3, num4, num5],
-            "I": [num1, num2, num3, num4, num5],
-            "N": [num1, num2, num3, num4, num5],
-            "G": [num1, num2, num3, num4, num5],
-            "O": [num1, num2, num3, num4, num5]
-        }
-        """
-
-        imagem_part = types.Part.from_bytes(
-            data=imagem_bytes,
-            mime_type="image/jpeg",
-        )
-
-        response = client.models.generate_content(
-            model="gemini-3.8-flash", contents=[imagem_part, prompt]
-        )
-
-        texto_limpo = (
-            response.text.strip().replace("```json", "").replace("```", "")
-        )
-        dados = json.loads(texto_limpo)
-        return dados
-    except Exception as e:
-        st.error(f"Erro ao ler imagem com IA: {e}")
         return None
+
+    client = genai.Client(
+        api_key=api_key, http_options=types.HttpOptions(api_version="v1")
+    )
+
+    prompt = """
+    Examine esta imagem de uma cartela de bingo tradicional de 75 bolas.
+    A cartela possui 5 colunas: B (1-15), I (16-30), N (31-45), G (46-60), O (61-75).
+    Extraia exatamente os 5 números presentes em cada coluna.
+    Retorne estritamente um JSON no seguinte formato válido, sem formatação markdown em volta:
+    {
+        "B": [num1, num2, num3, num4, num5],
+        "I": [num1, num2, num3, num4, num5],
+        "N": [num1, num2, num3, num4, num5],
+        "G": [num1, num2, num3, num4, num5],
+        "O": [num1, num2, num3, num4, num5]
+    }
+    """
+
+    imagem_part = types.Part.from_bytes(
+        data=imagem_bytes,
+        mime_type="image/jpeg",
+    )
+
+    # Lista de modelos aceitos na API em ordem de prioridade
+    modelos = [
+        "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+    ]
+
+    # Guarda o último erro apenas para exibição se todos os modelos falharem
+    ultimo_erro = None
+
+    for modelo in modelos:
+        try:
+            response = client.models.generate_content(
+                model=modelo, contents=[imagem_part, prompt]
+            )
+
+            texto_limpo = (
+                response.text.strip().replace("```json", "").replace("```", "")
+            )
+            dados = json.loads(texto_limpo)
+            return dados
+        except Exception as e:
+            # Em caso de qualquer erro (404, 503, nome de modelo antigo, etc.), registra e tenta o próximo
+            ultimo_erro = e
+            continue
+
+    st.error(f"Não foi possível processar a foto. Erro: {ultimo_erro}")
+    return None
+
 
 
 
