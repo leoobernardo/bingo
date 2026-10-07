@@ -1,12 +1,9 @@
-import os
 import json
+import os
 import cv2
 import numpy as np
 from PIL import Image
 import streamlit as st
-
-# Inicializa o leitor do EasyOCR em cache para não recarregar a cada clique (otimiza o tempo de resposta)
-
 
 ARQUIVO_DADOS = "bingo_dados.json"
 
@@ -74,7 +71,8 @@ if "cartelas" not in st.session_state:
     ) = carregar_dados()
 
 
-# --- FUNÇÃO DE LEITURA COM GEMINI VISION ---
+# --- FUNÇÕES DE PROCESSAMENTO DE IMAGEM E OCR ---
+
 
 def redimensionar_imagem(img, largura_max=800):
     """Redimensiona a imagem para evitar estourar a memória RAM do servidor."""
@@ -100,18 +98,12 @@ def ler_cartela_com_ia(imagem_bytes):
             st.error("Não foi possível processar o arquivo de imagem enviado.")
             return None
 
-        # Redimensiona para economizar memória
         img = redimensionar_imagem(img, largura_max=600)
-
-        # Converte para escala de cinza
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         reader = easyocr.Reader(["en"], gpu=False)
-
-        # Executa a leitura apenas nos dígitos
         resultados = reader.readtext(gray, detail=0, allowlist="0123456789")
 
-        # Filtra apenas números válidos de bingo (1 a 75)
         numeros_encontrados = []
         for texto in resultados:
             if texto.isdigit():
@@ -125,18 +117,9 @@ def ler_cartela_com_ia(imagem_bytes):
             )
             return None
 
-        # Completa com zeros até atingir os 25 números caso falte algo
         nums = numeros_encontrados[:25]
         while len(nums) < 25:
             nums.append(0)
-
-        # --- CORREÇÃO DA TRANSPOSIÇÃO (LINHA -> COLUNA) ---
-        # Como o OCR lê linha por linha:
-        # Posições [0, 5, 10, 15, 20] -> Coluna B (1º elemento de cada linha)
-        # Posições [1, 6, 11, 16, 21] -> Coluna I (2º elemento de cada linha)
-        # Posições [2, 7, 12, 17, 22] -> Coluna N (3º elemento de cada linha)
-        # Posições [3, 8, 13, 18, 23] -> Coluna G (4º elemento de cada linha)
-        # Posições [4, 9, 14, 19, 24] -> Coluna O (5º elemento de cada linha)
 
         dados = {
             "B": [nums[0], nums[5], nums[10], nums[15], nums[20]],
@@ -151,7 +134,6 @@ def ler_cartela_com_ia(imagem_bytes):
     except Exception as e:
         st.error(f"Erro no processamento OCR: {e}")
         return None
-
 
 
 # --- INTERFACE E NAVEGAÇÃO ---
@@ -208,8 +190,8 @@ elif menu == "Cadastrar por Foto (IA)":
     nome_cartela = st.text_input("Nome / Identificador da Cartela:")
 
     foto = st.file_uploader(
-    "Envie ou tire uma foto da cartela", type=["jpg", "jpeg", "png"]
-)
+        "Envie ou tire uma foto da cartela", type=["jpg", "jpeg", "png"]
+    )
 
     if foto and nome_cartela:
         if st.button("🔍 Ler Cartela com IA", use_container_width=True):
@@ -248,7 +230,6 @@ elif menu == "Cadastrar por Foto (IA)":
                     )
                     numeros_finais.add(num_editado)
 
-                    # Valida regras de intervalo por coluna
                     if not (inicio <= num_editado <= fim):
                         validacao_ok = False
 
@@ -317,30 +298,59 @@ elif menu == "Cadastro Manual":
             st.success("Cartela cadastrada com sucesso!")
 
 
-# --- TELA DE SORTEIO ---
+# --- TELA DE SORTEIO (ATUALIZADA & COMPACTA) ---
 elif menu == "Acompanhar Sorteio":
+    # CSS para compactar botões no celular
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stHorizontalBlock"] {
+            gap: 0.15rem !important;
+        }
+        div.stButton > button {
+            padding: 2px 0px !important;
+            font-size: 13px !important;
+            min-height: 36px !important;
+            margin: 0px !important;
+        }
+        </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
     st.subheader("🎯 Painel de Sorteio")
+    st.caption("Toque no número para marcar ou desmarcar como sorteado:")
 
-    # Grade de Pedras (1 a 75)
-    st.write("Clique no número para marcar como sorteado:")
+    # Desenha uma grade de 5 colunas por letra (3 linhas de 5 botões)
+    for letra, (inicio, fim) in REGRAS_COLUNAS.items():
+        st.markdown(f"### **{letra}**")
+        numeros_letra = list(range(inicio, fim + 1))
 
-    cols = st.columns(5)
-    for i, (letra, (inicio, fim)) in enumerate(REGRAS_COLUNAS.items()):
-        with cols[i]:
-            st.markdown(f"### **{letra}**")
-            for n in range(inicio, fim + 1):
+        for row in range(0, 15, 5):
+            cols = st.columns(5)
+            for idx, n in enumerate(numeros_letra[row : row + 5]):
                 ja_sorteado = n in st.session_state.sorteados
                 label = f"🔴 {n}" if ja_sorteado else str(n)
+                tipo_botao = "primary" if ja_sorteado else "secondary"
 
-                if st.button(
+                if cols[idx].button(
                     label,
                     key=f"sorteio_{n}",
+                    type=tipo_botao,
                     use_container_width=True,
-                    disabled=ja_sorteado,
                 ):
-                    st.session_state.sorteados.append(n)
-                    for c_nome in st.session_state.cartelas:
-                        st.session_state.cartelas[c_nome].discard(n)
+                    if ja_sorteado:
+                        # Permite desmarcar caso clique por engano
+                        st.session_state.sorteados.remove(n)
+                        # Recompõe os números nas cartelas ativas
+                        for c_nome, orig in st.session_state.cartelas_originais.items():
+                            if n in orig:
+                                st.session_state.cartelas[c_nome].add(n)
+                    else:
+                        st.session_state.sorteados.append(n)
+                        for c_nome in st.session_state.cartelas:
+                            st.session_state.cartelas[c_nome].discard(n)
+
                     salvar_dados()
                     st.rerun()
 
