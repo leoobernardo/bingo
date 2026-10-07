@@ -1,6 +1,7 @@
 import json
 import os
 from google import genai
+from google.genai import types
 import streamlit as st
 
 ARQUIVO_DADOS = "bingo_dados.json"
@@ -73,7 +74,6 @@ if "cartelas" not in st.session_state:
 def ler_cartela_com_ia(imagem_bytes):
     """Envia a foto para a API do Gemini processar os números da cartela."""
     try:
-        # Puxa a chave configurada no ambiente ou Secrets do Streamlit
         api_key = os.environ.get(
             "GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "")
         )
@@ -99,12 +99,14 @@ def ler_cartela_com_ia(imagem_bytes):
         }
         """
 
+        # Prepara a imagem no formato exigido pela SDK da Google
+        imagem_part = types.Part.from_bytes(
+            data=imagem_bytes,
+            mime_type="image/jpeg",
+        )
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                {"mime_type": "image/jpeg", "data": imagem_bytes},
-                prompt,
-            ],
+            model="gemini-2.5-flash", contents=[imagem_part, prompt]
         )
 
         texto_limpo = (
@@ -115,6 +117,8 @@ def ler_cartela_com_ia(imagem_bytes):
     except Exception as e:
         st.error(f"Erro ao ler imagem com IA: {e}")
         return None
+
+
 
 
 # --- INTERFACE E NAVEGAÇÃO ---
