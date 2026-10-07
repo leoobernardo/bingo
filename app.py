@@ -260,38 +260,34 @@ elif menu == "Cadastro Manual":
             st.success("Salvo!")
 
 # --- TELA DE SORTEIO (PAINEL HTML/CSS INTEGRADO ULTRAPACK) ---
+# --- TELA DE SORTEIO (PAINEL HTML/CSS COM CLIQUE DIRETO) ---
 elif menu == "Acompanhar Sorteio":
     st.subheader("🎯 Painel de Sorteio")
+    st.caption("Toque diretamente no número para marcar ou desmarcar:")
 
-    # Seleção rápida para alternar números sem recarregar layouts gigantes
-    st.caption("Selecione o número sorteado para marcar/desmarcar:")
-    num_selecionado = st.number_input(
-        "Digite ou selecione a pedra:",
-        min_value=1,
-        max_value=75,
-        step=1,
-        key="pedra_input",
-    )
+    # Captura evento de clique enviado pelo HTML
+    params = st.query_params
+    if "clique_num" in params:
+        num_clicado = int(params["clique_num"])
+        # Remove o parâmetro da URL para não repetir em refresh
+        st.query_params.clear()
 
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        if st.button("🔴 Alternar Pedra", type="primary", use_container_width=True):
-            n = int(num_selecionado)
-            if n in st.session_state.sorteados:
-                st.session_state.sorteados.remove(n)
-                for c_nome, orig in st.session_state.cartelas_originais.items():
-                    if n in orig:
-                        st.session_state.cartelas[c_nome].add(n)
-            else:
-                st.session_state.sorteados.append(n)
-                for c_nome in st.session_state.cartelas:
-                    st.session_state.cartelas[c_nome].discard(n)
-            salvar_dados()
-            st.rerun()
+        if num_clicado in st.session_state.sorteados:
+            st.session_state.sorteados.remove(num_clicado)
+            for c_nome, orig in st.session_state.cartelas_originais.items():
+                if num_clicado in orig:
+                    st.session_state.cartelas[c_nome].add(num_clicado)
+        else:
+            st.session_state.sorteados.append(num_clicado)
+            for c_nome in st.session_state.cartelas:
+                st.session_state.cartelas[c_nome].discard(num_clicado)
 
-    # MONTAGEM DO PAINEL BINGO EM GRID HTML PURO
+        salvar_dados()
+        st.rerun()
+
     sorteados_set = set(st.session_state.sorteados)
 
+    # HTML + JavaScript para lidar com o clique direto nos quadradinhos
     html_grid = """
     <style>
         .bingo-board {
@@ -302,6 +298,7 @@ elif menu == "Acompanhar Sorteio":
             max-width: 400px;
             margin: 0 auto;
             font-family: sans-serif;
+            user-select: none;
         }
         .header-cell {
             background-color: #FF4B4B;
@@ -316,11 +313,16 @@ elif menu == "Acompanhar Sorteio":
             background-color: #262730;
             color: #FAFAFA;
             text-align: center;
-            padding: 6px 0;
+            padding: 8px 0;
             border-radius: 3px;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: bold;
             border: 1px solid #363940;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .num-cell:active {
+            transform: scale(0.95);
         }
         .num-cell.active {
             background-color: #FF4B4B;
@@ -329,6 +331,17 @@ elif menu == "Acompanhar Sorteio":
             box-shadow: 0 0 5px rgba(255, 75, 75, 0.5);
         }
     </style>
+
+    <script>
+    function alternarPedra(num) {
+        // Envia o número clicado para a URL da aplicação Streamlit
+        window.parent.postMessage({
+            type: 'streamlit:setQueryParams',
+            queryParams: { clique_num: num }
+        }, '*');
+    }
+    </script>
+
     <div class="bingo-board">
         <div class="header-cell">B</div>
         <div class="header-cell">I</div>
@@ -341,12 +354,11 @@ elif menu == "Acompanhar Sorteio":
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
         for n in numeros_linha:
             is_active = "active" if n in sorteados_set else ""
-            html_grid += f'<div class="num-cell {is_active}">{n}</div>'
+            html_grid += f'<div class="num-cell {is_active}" onclick="alternarPedra({n})">{n}</div>'
 
     html_grid += "</div>"
 
-    # Renderiza o painel HTML (com altura ajustada para caber sem rolar)
-    components.html(html_grid, height=520, scrolling=False)
+    components.html(html_grid, height=530, scrolling=False)
 
     st.divider()
 
