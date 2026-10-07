@@ -88,7 +88,7 @@ def ler_cartela_com_ia(imagem_bytes):
         reader = carregar_leitor_ocr()
 
         # Decodifica os bytes da imagem para o formato OpenCV
-        file_bytes = np.asarray(bytearray(imagem_bytes), dtype=uint8)
+        file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
         # 1. Pré-processamento da imagem para destacar os números
