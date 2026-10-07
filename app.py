@@ -193,7 +193,9 @@ elif menu == "Cadastrar por Foto (IA)":
 
     nome_cartela = st.text_input("Nome / Identificador da Cartela:")
 
-    foto = st.camera_input("Tire uma foto da cartela de bingo")
+    foto = st.file_uploader(
+    "Envie ou tire uma foto da cartela", type=["jpg", "jpeg", "png"]
+)
 
     if foto and nome_cartela:
         if st.button("🔍 Ler Cartela com IA", use_container_width=True):
