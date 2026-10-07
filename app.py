@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import streamlit as st
+import streamlit.components.v1 as components
 
 ARQUIVO_DADOS = "bingo_dados.json"
 
@@ -15,7 +16,6 @@ REGRAS_COLUNAS = {
     "O": (61, 75),
 }
 
-# Configuração com layout WIDE obrigatório para caber as 5 colunas
 st.set_page_config(
     page_title="Bingo 75 Vision", page_icon="🎲", layout="wide"
 )
@@ -259,99 +259,98 @@ elif menu == "Cadastro Manual":
             salvar_dados()
             st.success("Salvo!")
 
-# --- TELA DE SORTEIO (PAINEL MOBILE QUADRADO 5 COLUNAS x 15 LINHAS) ---
+# --- TELA DE SORTEIO (PAINEL HTML/CSS INTEGRADO ULTRAPACK) ---
 elif menu == "Acompanhar Sorteio":
-    # CSS focado em espremer os botões ao máximo na horizontal
-    st.markdown(
-        """
-        <style>
-        /* Tira as margens laterais da página */
-        .block-container {
-            padding: 0.5rem 0.2rem !important;
-            max-width: 100vw !important;
-        }
-
-        /* Força colunas lado a lado sem quebra de linha */
-        div[data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 1px !important;
-            margin: 0px !important;
-            padding: 0px !important;
-        }
-
-        div[data-testid="column"] {
-            width: 20% !important;
-            flex: 1 1 20% !important;
-            min-width: 0px !important;
-            padding: 0px !important;
-        }
-
-        /* Formatação em estilo 'quadradinho' para os botões */
-        div.stButton > button {
-            width: 100% !important;
-            height: 28px !important;
-            min-height: 28px !important;
-            padding: 0px !important;
-            font-size: 11px !important;
-            font-weight: bold !important;
-            border-radius: 2px !important;
-            margin: 1px 0px !important;
-            line-height: 28px !important;
-        }
-
-        /* Remove botão de atalho/ícones internos */
-        div.stButton > button p {
-            font-size: 11px !important;
-            margin: 0 !important;
-        }
-        </style>
-    """,
-        unsafe_allow_html=True,
-    )
-
     st.subheader("🎯 Painel de Sorteio")
 
-    # Cabeçalho B I N G O
-    cols_header = st.columns(5)
-    for idx, letra in enumerate(["B", "I", "N", "G", "O"]):
-        cols_header[idx].markdown(
-            f"<div style='text-align:center; font-weight:bold; color:#FF4B4B;'>{letra}</div>",
-            unsafe_allow_html=True,
-        )
+    # Seleção rápida para alternar números sem recarregar layouts gigantes
+    st.caption("Selecione o número sorteado para marcar/desmarcar:")
+    num_selecionado = st.number_input(
+        "Digite ou selecione a pedra:",
+        min_value=1,
+        max_value=75,
+        step=1,
+        key="pedra_input",
+    )
 
-    # Renderiza 15 linhas com 5 colunas cada
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("🔴 Alternar Pedra", type="primary", use_container_width=True):
+            n = int(num_selecionado)
+            if n in st.session_state.sorteados:
+                st.session_state.sorteados.remove(n)
+                for c_nome, orig in st.session_state.cartelas_originais.items():
+                    if n in orig:
+                        st.session_state.cartelas[c_nome].add(n)
+            else:
+                st.session_state.sorteados.append(n)
+                for c_nome in st.session_state.cartelas:
+                    st.session_state.cartelas[c_nome].discard(n)
+            salvar_dados()
+            st.rerun()
+
+    # MONTAGEM DO PAINEL BINGO EM GRID HTML PURO
+    sorteados_set = set(st.session_state.sorteados)
+
+    html_grid = """
+    <style>
+        .bingo-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 3px;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            font-family: sans-serif;
+        }
+        .header-cell {
+            background-color: #FF4B4B;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 6px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .num-cell {
+            background-color: #262730;
+            color: #FAFAFA;
+            text-align: center;
+            padding: 6px 0;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            border: 1px solid #363940;
+        }
+        .num-cell.active {
+            background-color: #FF4B4B;
+            color: white;
+            border-color: #FF2222;
+            box-shadow: 0 0 5px rgba(255, 75, 75, 0.5);
+        }
+    </style>
+    <div class="bingo-board">
+        <div class="header-cell">B</div>
+        <div class="header-cell">I</div>
+        <div class="header-cell">N</div>
+        <div class="header-cell">G</div>
+        <div class="header-cell">O</div>
+    """
+
     for i in range(15):
-        cols = st.columns(5)
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
+        for n in numeros_linha:
+            is_active = "active" if n in sorteados_set else ""
+            html_grid += f'<div class="num-cell {is_active}">{n}</div>'
 
-        for col_idx, n in enumerate(numeros_linha):
-            ja_sorteado = n in st.session_state.sorteados
-            tipo = "primary" if ja_sorteado else "secondary"
-            label = f"{n}"  # Mantém apenas o número para economizar espaço
+    html_grid += "</div>"
 
-            if cols[col_idx].button(
-                label, key=f"sorteio_{n}", type=tipo, use_container_width=True
-            ):
-                if ja_sorteado:
-                    st.session_state.sorteados.remove(n)
-                    for (
-                        c_nome,
-                        orig,
-                    ) in st.session_state.cartelas_originais.items():
-                        if n in orig:
-                            st.session_state.cartelas[c_nome].add(n)
-                else:
-                    st.session_state.sorteados.append(n)
-                    for c_nome in st.session_state.cartelas:
-                        st.session_state.cartelas[c_nome].discard(n)
-
-                salvar_dados()
-                st.rerun()
+    # Renderiza o painel HTML (com altura ajustada para caber sem rolar)
+    components.html(html_grid, height=520, scrolling=False)
 
     st.divider()
 
+    # Ranking das cartelas
     st.subheader("🔥 Cartelas Armadas (Faltam ≤ 3)")
 
     cartelas_armadas = [
