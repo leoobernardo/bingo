@@ -7,7 +7,6 @@ import streamlit as st
 
 ARQUIVO_DADOS = "bingo_dados.json"
 
-# Regras das colunas do Bingo Tradicional (75 Bolas)
 REGRAS_COLUNAS = {
     "B": (1, 15),
     "I": (16, 30),
@@ -16,13 +15,13 @@ REGRAS_COLUNAS = {
     "O": (61, 75),
 }
 
-# --- CONFIGURAÇÃO DA PÁGINA STREAMLIT ---
+# Configuração com layout WIDE obrigatório para caber as 5 colunas
 st.set_page_config(
-    page_title="Bingo 75 Vision", page_icon="🎲", layout="centered"
+    page_title="Bingo 75 Vision", page_icon="🎲", layout="wide"
 )
 
 
-# --- GERENCIAMENTO DE DADOS (PERSISTÊNCIA) ---
+# --- PERSISTÊNCIA DE DADOS ---
 def carregar_dados():
     if os.path.exists(ARQUIVO_DADOS):
         try:
@@ -62,7 +61,6 @@ def salvar_dados():
         json.dump(dados, f, indent=4, ensure_ascii=False)
 
 
-# Inicializa a sessão
 if "cartelas" not in st.session_state:
     (
         st.session_state.cartelas,
@@ -71,11 +69,8 @@ if "cartelas" not in st.session_state:
     ) = carregar_dados()
 
 
-# --- FUNÇÕES DE PROCESSAMENTO DE IMAGEM E OCR ---
-
-
-def redimensionar_imagem(img, largura_max=800):
-    """Redimensiona a imagem para evitar estourar a memória RAM do servidor."""
+# --- OCR & PROCESSAMENTO ---
+def redimensionar_imagem(img, largura_max=600):
     altura, largura = img.shape[:2]
     if largura > largura_max:
         proporcao = largura_max / float(largura)
@@ -87,7 +82,6 @@ def redimensionar_imagem(img, largura_max=800):
 
 
 def ler_cartela_com_ia(imagem_bytes):
-    """Lê os números da cartela utilizando OCR otimizado e organiza por COLUNAS."""
     try:
         import easyocr
 
@@ -95,7 +89,7 @@ def ler_cartela_com_ia(imagem_bytes):
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
         if img is None:
-            st.error("Não foi possível processar o arquivo de imagem enviado.")
+            st.error("Não foi possível processar a imagem.")
             return None
 
         img = redimensionar_imagem(img, largura_max=600)
@@ -112,9 +106,7 @@ def ler_cartela_com_ia(imagem_bytes):
                     numeros_encontrados.append(val)
 
         if len(numeros_encontrados) < 15:
-            st.warning(
-                "Poucos números foram identificados claramente. Tente tirar a foto com mais luz e foco nos números."
-            )
+            st.warning("Poucos números identificados. Tire uma foto mais clara.")
             return None
 
         nums = numeros_encontrados[:25]
@@ -130,13 +122,12 @@ def ler_cartela_com_ia(imagem_bytes):
         }
 
         return dados
-
     except Exception as e:
-        st.error(f"Erro no processamento OCR: {e}")
+        st.error(f"Erro no OCR: {e}")
         return None
 
 
-# --- INTERFACE E NAVEGAÇÃO ---
+# --- MENU PRINCIPAL ---
 st.title("🎲 Bingo 75 Mobile")
 
 menu = st.sidebar.radio(
@@ -147,17 +138,15 @@ menu = st.sidebar.radio(
         "Cadastro Manual",
         "Acompanhar Sorteio",
     ],
+    key="main_navigation_radio",
 )
 
-# --- MENU PRINCIPAL ---
 if menu == "Menu Principal":
     st.subheader("Bem-vindo ao Gerenciador de Bingo!")
     st.write(
         f"**Cartelas Cadastradas:** {len(st.session_state.cartelas_originais)}"
     )
-    st.write(
-        f"**Pedras Sorteadas:** {len(st.session_state.sorteados)} pedras"
-    )
+    st.write(f"**Pedras Sorteadas:** {len(st.session_state.sorteados)}")
 
     st.divider()
 
@@ -166,7 +155,7 @@ if menu == "Menu Principal":
         for nome, orig in st.session_state.cartelas_originais.items():
             st.session_state.cartelas[nome] = set(orig)
         salvar_dados()
-        st.success("Sorteio reiniciado! Cartelas mantidas.")
+        st.success("Sorteio reiniciado!")
         st.rerun()
 
     if st.button(
@@ -179,36 +168,27 @@ if menu == "Menu Principal":
         st.session_state.sorteados.clear()
         if os.path.exists(ARQUIVO_DADOS):
             os.remove(ARQUIVO_DADOS)
-        st.success("Todos os dados foram apagados.")
+        st.success("Dados apagados.")
         st.rerun()
 
-
-# --- CADASTRO POR FOTO (IA) ---
 elif menu == "Cadastrar por Foto (IA)":
     st.subheader("📸 Cadastrar Cartela por Foto")
-
-    nome_cartela = st.text_input("Nome / Identificador da Cartela:")
-
+    nome_cartela = st.text_input("Nome da Cartela:")
     foto = st.file_uploader(
-        "Envie ou tire uma foto da cartela", type=["jpg", "jpeg", "png"]
+        "Envie ou tire uma foto", type=["jpg", "jpeg", "png"]
     )
 
     if foto and nome_cartela:
         if st.button("🔍 Ler Cartela com IA", use_container_width=True):
-            with st.spinner("IA analisando a imagem..."):
-                bytes_foto = foto.getvalue()
-                resultado = ler_cartela_com_ia(bytes_foto)
-
+            with st.spinner("Analisando imagem..."):
+                resultado = ler_cartela_com_ia(foto.getvalue())
                 if resultado:
                     st.session_state["cartela_temp"] = resultado
-                    st.success("Leitura concluída! Confira os números abaixo.")
+                    st.success("Leitura concluída!")
 
-    # TELA DE CONFIRMAÇÃO E VALIDAÇÃO
     if "cartela_temp" in st.session_state:
         st.divider()
-        st.subheader("📋 Confirmação da Leitura")
-        st.info("Confira se os números lidos pela IA estão corretos:")
-
+        st.subheader("📋 Confirmação")
         dados_ia = st.session_state["cartela_temp"]
         numeros_finais = set()
 
@@ -217,7 +197,7 @@ elif menu == "Cadastrar por Foto (IA)":
 
         for i, (letra, (inicio, fim)) in enumerate(REGRAS_COLUNAS.items()):
             with cols[i]:
-                st.markdown(f"### **{letra}**")
+                st.markdown(f"**{letra}**")
                 nums_coluna = dados_ia.get(letra, [])
                 for idx, val in enumerate(nums_coluna):
                     num_editado = st.number_input(
@@ -229,23 +209,16 @@ elif menu == "Cadastrar por Foto (IA)":
                         label_visibility="collapsed",
                     )
                     numeros_finais.add(num_editado)
-
                     if not (inicio <= num_editado <= fim):
                         validacao_ok = False
-
-        st.write(f"**Total de Números Únicos:** {len(numeros_finais)} / 25")
 
         col1, col2 = st.columns(2)
         with col1:
             if st.button(
-                "✅ Confirmar e Salvar",
-                type="primary",
-                use_container_width=True,
+                "✅ Salvar", type="primary", use_container_width=True
             ):
                 if len(numeros_finais) != 25 or not validacao_ok:
-                    st.error(
-                        "Erro: A cartela precisa ter exatamente 25 números válidos dentro das faixas B-I-N-G-O!"
-                    )
+                    st.error("Cartela inválida! Verifique os números.")
                 else:
                     st.session_state.cartelas_originais[nome_cartela] = set(
                         numeros_finais
@@ -253,94 +226,85 @@ elif menu == "Cadastrar por Foto (IA)":
                     st.session_state.cartelas[nome_cartela] = set(
                         numeros_finais
                     )
-
                     for s in st.session_state.sorteados:
                         st.session_state.cartelas[nome_cartela].discard(s)
-
                     salvar_dados()
                     del st.session_state["cartela_temp"]
-                    st.success(
-                        f"Cartela '{nome_cartela}' cadastrada com sucesso!"
-                    )
+                    st.success("Salvo com sucesso!")
                     st.rerun()
-
         with col2:
             if st.button("❌ Descartar", use_container_width=True):
                 del st.session_state["cartela_temp"]
                 st.rerun()
 
-
-# --- CADASTRO MANUAL ---
 elif menu == "Cadastro Manual":
     st.subheader("➕ Cadastro Manual")
     nome = st.text_input("Nome da Cartela:")
-
-    st.write("Selecione os 25 números (5 por coluna):")
     nums_selecionados = set()
 
     cols = st.columns(5)
     for i, (letra, (inicio, fim)) in enumerate(REGRAS_COLUNAS.items()):
         with cols[i]:
-            st.markdown(f"**{letra}** ({inicio}-{fim})")
+            st.markdown(f"**{letra}**")
             for n in range(inicio, fim + 1):
                 if st.checkbox(str(n), key=f"manual_{n}"):
                     nums_selecionados.add(n)
 
-    st.write(f"**Selecionados:** {len(nums_selecionados)}/25")
-
     if st.button("Salvar Cartela", type="primary", use_container_width=True):
         if not nome or len(nums_selecionados) != 25:
-            st.error("Preencha o nome e selecione exatamente 25 números!")
+            st.error("Selecione exatamente 25 números!")
         else:
             st.session_state.cartelas_originais[nome] = set(nums_selecionados)
             st.session_state.cartelas[nome] = set(nums_selecionados)
             salvar_dados()
-            st.success("Cartela cadastrada com sucesso!")
+            st.success("Salvo!")
 
-
-# --- TELA DE SORTEIO (MATRIZ REAL 5 COLUNAS X 15 LINHAS) ---
-# --- TELA DE SORTEIO (GRADE ULTRACOMPACTA 5x15) ---
+# --- TELA DE SORTEIO (PAINEL MOBILE QUADRADO 5 COLUNAS x 15 LINHAS) ---
 elif menu == "Acompanhar Sorteio":
-    # CSS agressivo para reduzir botões, margens e espaçamentos no mobile
+    # CSS focado em espremer os botões ao máximo na horizontal
     st.markdown(
         """
         <style>
-        /* Remove margens da página principal */
+        /* Tira as margens laterais da página */
         .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 1rem !important;
-            padding-left: 0.2rem !important;
-            padding-right: 0.2rem !important;
-            max-width: 100% !important;
+            padding: 0.5rem 0.2rem !important;
+            max-width: 100vw !important;
         }
 
-        /* Força alinhamento em 5 colunas horizontais */
-        [data-testid="stHorizontalBlock"] {
+        /* Força colunas lado a lado sem quebra de linha */
+        div[data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 1px !important;
-            margin-bottom: 2px !important;
+            margin: 0px !important;
+            padding: 0px !important;
         }
 
-        [data-testid="column"] {
+        div[data-testid="column"] {
             width: 20% !important;
             flex: 1 1 20% !important;
             min-width: 0px !important;
             padding: 0px !important;
         }
 
-        /* Estilização dos Botões dos Números */
+        /* Formatação em estilo 'quadradinho' para os botões */
         div.stButton > button {
+            width: 100% !important;
+            height: 28px !important;
+            min-height: 28px !important;
             padding: 0px !important;
             font-size: 11px !important;
             font-weight: bold !important;
-            height: 26px !important;
-            min-height: 26px !important;
-            line-height: 26px !important;
-            margin: 0px !important;
-            border-radius: 3px !important;
-            border: 1px solid #333 !important;
+            border-radius: 2px !important;
+            margin: 1px 0px !important;
+            line-height: 28px !important;
+        }
+
+        /* Remove botão de atalho/ícones internos */
+        div.stButton > button p {
+            font-size: 11px !important;
+            margin: 0 !important;
         }
         </style>
     """,
@@ -349,30 +313,26 @@ elif menu == "Acompanhar Sorteio":
 
     st.subheader("🎯 Painel de Sorteio")
 
-    # Cabeçalho B - I - N - G - O
-    letras = ["B", "I", "N", "G", "O"]
+    # Cabeçalho B I N G O
     cols_header = st.columns(5)
-    for idx, letra in enumerate(letras):
+    for idx, letra in enumerate(["B", "I", "N", "G", "O"]):
         cols_header[idx].markdown(
-            f"<div style='text-align: center; font-weight: bold; font-size: 16px;'>{letra}</div>",
+            f"<div style='text-align:center; font-weight:bold; color:#FF4B4B;'>{letra}</div>",
             unsafe_allow_html=True,
         )
 
-    # Matriz 5x15 de botões compactos
+    # Renderiza 15 linhas com 5 colunas cada
     for i in range(15):
         cols = st.columns(5)
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
 
         for col_idx, n in enumerate(numeros_linha):
             ja_sorteado = n in st.session_state.sorteados
-            label = f"🔴{n}" if ja_sorteado else str(n)
-            tipo_botao = "primary" if ja_sorteado else "secondary"
+            tipo = "primary" if ja_sorteado else "secondary"
+            label = f"{n}"  # Mantém apenas o número para economizar espaço
 
             if cols[col_idx].button(
-                label,
-                key=f"sorteio_{n}",
-                type=tipo_botao,
-                use_container_width=True,
+                label, key=f"sorteio_{n}", type=tipo, use_container_width=True
             ):
                 if ja_sorteado:
                     st.session_state.sorteados.remove(n)
@@ -392,7 +352,6 @@ elif menu == "Acompanhar Sorteio":
 
     st.divider()
 
-    # Ranking das cartelas
     st.subheader("🔥 Cartelas Armadas (Faltam ≤ 3)")
 
     cartelas_armadas = [
