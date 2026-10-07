@@ -83,7 +83,10 @@ def ler_cartela_com_ia(imagem_bytes):
             )
             return None
 
-        client = genai.Client(api_key=api_key)
+        # Força a versão v1 da API no cliente
+        client = genai.Client(
+            api_key=api_key, http_options=types.HttpOptions(api_version="v1")
+        )
 
         prompt = """
         Examine esta imagem de uma cartela de bingo tradicional de 75 bolas.
@@ -99,14 +102,13 @@ def ler_cartela_com_ia(imagem_bytes):
         }
         """
 
-        # Prepara a imagem no formato exigido pela SDK da Google
         imagem_part = types.Part.from_bytes(
             data=imagem_bytes,
             mime_type="image/jpeg",
         )
 
         response = client.models.generate_content(
-            model="gemini-1.5-flash", contents=[imagem_part, prompt]
+            model="gemini-2.5-flash", contents=[imagem_part, prompt]
         )
 
         texto_limpo = (
@@ -117,7 +119,6 @@ def ler_cartela_com_ia(imagem_bytes):
     except Exception as e:
         st.error(f"Erro ao ler imagem com IA: {e}")
         return None
-
 
 
 
