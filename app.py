@@ -82,7 +82,6 @@ def ler_cartela_com_ia(imagem_bytes):
         )
         return None
 
-    # Inicializa o cliente padrão da SDK
     client = genai.Client(api_key=api_key)
 
     prompt = """
@@ -104,28 +103,20 @@ def ler_cartela_com_ia(imagem_bytes):
         mime_type="image/jpeg",
     )
 
-    # Nomes oficiais válidos na SDK atual
-    modelos = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    try:
+        response = client.models.generate_content(
+            model="gemini-3.8-flash", contents=[imagem_part, prompt]
+        )
 
-    ultimo_erro = None
+        texto_limpo = (
+            response.text.strip().replace("```json", "").replace("```", "")
+        )
+        dados = json.loads(texto_limpo)
+        return dados
+    except Exception as e:
+        st.error(f"Erro ao ler imagem com IA: {e}")
+        return None
 
-    for modelo in modelos:
-        try:
-            response = client.models.generate_content(
-                model=modelo, contents=[imagem_part, prompt]
-            )
-
-            texto_limpo = (
-                response.text.strip().replace("```json", "").replace("```", "")
-            )
-            dados = json.loads(texto_limpo)
-            return dados
-        except Exception as e:
-            ultimo_erro = e
-            continue
-
-    st.error(f"Erro ao ler imagem com IA: {ultimo_erro}")
-    return None
 
 
 
