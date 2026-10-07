@@ -89,12 +89,10 @@ def redimensionar_imagem(img, largura_max=800):
 
 
 def ler_cartela_com_ia(imagem_bytes):
-    """Lê os números da cartela utilizando OCR otimizado para baixo consumo de RAM."""
+    """Lê os números da cartela utilizando OCR otimizado e organiza por COLUNAS."""
     try:
-        # Importação diferida para economizar memória inicial
         import easyocr
 
-        # Converte bytes em imagem OpenCV
         file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -102,13 +100,12 @@ def ler_cartela_com_ia(imagem_bytes):
             st.error("Não foi possível processar o arquivo de imagem enviado.")
             return None
 
-        # Redimensiona para economizar uso de memória no Streamlit Cloud
+        # Redimensiona para economizar memória
         img = redimensionar_imagem(img, largura_max=600)
 
         # Converte para escala de cinza
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Inicializa o EasyOCR com suporte apenas para inglês (números)
         reader = easyocr.Reader(["en"], gpu=False)
 
         # Executa a leitura apenas nos dígitos
@@ -133,12 +130,20 @@ def ler_cartela_com_ia(imagem_bytes):
         while len(nums) < 25:
             nums.append(0)
 
+        # --- CORREÇÃO DA TRANSPOSIÇÃO (LINHA -> COLUNA) ---
+        # Como o OCR lê linha por linha:
+        # Posições [0, 5, 10, 15, 20] -> Coluna B (1º elemento de cada linha)
+        # Posições [1, 6, 11, 16, 21] -> Coluna I (2º elemento de cada linha)
+        # Posições [2, 7, 12, 17, 22] -> Coluna N (3º elemento de cada linha)
+        # Posições [3, 8, 13, 18, 23] -> Coluna G (4º elemento de cada linha)
+        # Posições [4, 9, 14, 19, 24] -> Coluna O (5º elemento de cada linha)
+
         dados = {
-            "B": nums[0:5],
-            "I": nums[5:10],
-            "N": nums[10:15],
-            "G": nums[15:20],
-            "O": nums[20:25],
+            "B": [nums[0], nums[5], nums[10], nums[15], nums[20]],
+            "I": [nums[1], nums[6], nums[11], nums[16], nums[21]],
+            "N": [nums[2], nums[7], nums[12], nums[17], nums[22]],
+            "G": [nums[3], nums[8], nums[13], nums[18], nums[23]],
+            "O": [nums[4], nums[9], nums[14], nums[19], nums[24]],
         }
 
         return dados
