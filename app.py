@@ -1,6 +1,5 @@
 import os
 import json
-import easyocr
 import cv2
 import numpy as np
 from PIL import Image
@@ -77,35 +76,45 @@ if "cartelas" not in st.session_state:
 
 # --- FUNÇÃO DE LEITURA COM GEMINI VISION ---
 
-@st.cache_resource
-def carregar_leitor_ocr():
-    # 'en' lê dígitos numéricos perfeitamente
-    return easyocr.Reader(['en'], gpu=False)
+def redimensionar_imagem(img, largura_max=800):
+    """Redimensiona a imagem para evitar estourar a memória RAM do servidor."""
+    altura, largura = img.shape[:2]
+    if largura > largura_max:
+        proporcao = largura_max / float(largura)
+        nova_altura = int(altura * proporcao)
+        return cv2.resize(
+            img, (largura_max, nova_altura), interpolation=cv2.INTER_AREA
+        )
+    return img
+
 
 def ler_cartela_com_ia(imagem_bytes):
-    """Lê os números da cartela utilizando OCR local (EasyOCR + OpenCV)."""
+    """Lê os números da cartela utilizando OCR otimizado para baixo consumo de RAM."""
     try:
-        reader = carregar_leitor_ocr()
+        # Importação diferida para economizar memória inicial
+        import easyocr
 
-        # Decodifica os bytes da imagem para o formato OpenCV
+        # Converte bytes em imagem OpenCV
         file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-        # 1. Pré-processamento da imagem para destacar os números
+        if img is None:
+            st.error("Não foi possível processar o arquivo de imagem enviado.")
+            return None
+
+        # Redimensiona para economizar uso de memória no Streamlit Cloud
+        img = redimensionar_imagem(img, largura_max=600)
+
+        # Converte para escala de cinza
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Aplica um filtro de nitidez/contraste suave
-        thresh = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY, 11, 2
-        )
 
-        # 2. Executa o OCR na imagem tratada
-        # detail=0 retorna apenas os textos encontrados
-        # allowlist='0123456789' força a leitura apenas de dígitos
-        resultados = reader.readtext(thresh, detail=0, allowlist='0123456789')
+        # Inicializa o EasyOCR com suporte apenas para inglês (números)
+        reader = easyocr.Reader(["en"], gpu=False)
 
-        # Filtrar apenas valores que sejam números válidos de bingo (1 a 75)
+        # Executa a leitura apenas nos dígitos
+        resultados = reader.readtext(gray, detail=0, allowlist="0123456789")
+
+        # Filtra apenas números válidos de bingo (1 a 75)
         numeros_encontrados = []
         for texto in resultados:
             if texto.isdigit():
@@ -113,30 +122,30 @@ def ler_cartela_com_ia(imagem_bytes):
                 if 1 <= val <= 75:
                     numeros_encontrados.append(val)
 
-        # Uma cartela de bingo 75 possui exatamente 25 números (ou 24 se o centro for livre)
-        if len(numeros_encontrados) < 20:
-            st.warning("Poucos números foram identificados claramente. Tente tirar a foto mais de perto, com boa iluminação e bem enquadrada.")
+        if len(numeros_encontrados) < 15:
+            st.warning(
+                "Poucos números foram identificados claramente. Tente tirar a foto com mais luz e foco nos números."
+            )
             return None
 
-        # Organiza os números lidos nas 5 colunas B, I, N, G, O
-        # Ajusta para pegar os primeiros 25 números em sequência
+        # Completa com zeros até atingir os 25 números caso falte algo
         nums = numeros_encontrados[:25]
-        
+        while len(nums) < 25:
+            nums.append(0)
+
         dados = {
             "B": nums[0:5],
             "I": nums[5:10],
             "N": nums[10:15],
             "G": nums[15:20],
-            "O": nums[20:25]
+            "O": nums[20:25],
         }
 
         return dados
 
     except Exception as e:
-        st.error(f"Erro no processamento OCR da imagem: {e}")
+        st.error(f"Erro no processamento OCR: {e}")
         return None
-
-
 
 
 
