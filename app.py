@@ -72,7 +72,6 @@ if "cartelas" not in st.session_state:
 
 # --- FUNÇÃO DE LEITURA COM GEMINI VISION ---
 def ler_cartela_com_ia(imagem_bytes):
-def ler_cartela_com_ia(imagem_bytes):
     """Envia a foto para a API do Gemini processar os números da cartela."""
     api_key = os.environ.get(
         "GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "")
