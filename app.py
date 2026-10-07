@@ -1,8 +1,13 @@
-import json
 import os
-from google import genai
-from google.genai import types
+import json
+import easyocr
+import cv2
+import numpy as np
+from PIL import Image
 import streamlit as st
+
+# Inicializa o leitor do EasyOCR em cache para não recarregar a cada clique (otimiza o tempo de resposta)
+
 
 ARQUIVO_DADOS = "bingo_dados.json"
 
@@ -71,52 +76,65 @@ if "cartelas" not in st.session_state:
 
 
 # --- FUNÇÃO DE LEITURA COM GEMINI VISION ---
+
+@st.cache_resource
+def carregar_leitor_ocr():
+    # 'en' lê dígitos numéricos perfeitamente
+    return easyocr.Reader(['en'], gpu=False)
+
 def ler_cartela_com_ia(imagem_bytes):
-    """Envia a foto para a API do Gemini processar os números da cartela."""
-    api_key = os.environ.get(
-        "GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "")
-    )
-    if not api_key:
-        st.error(
-            "Chave API do Gemini não configurada! Configure a variável GEMINI_API_KEY nos Secrets do Streamlit."
-        )
-        return None
-
-    client = genai.Client(api_key=api_key)
-
-    prompt = """
-    Examine esta imagem de uma cartela de bingo tradicional de 75 bolas.
-    A cartela possui 5 colunas: B (1-15), I (16-30), N (31-45), G (46-60), O (61-75).
-    Extraia exatamente os 5 números presentes em cada coluna.
-    Retorne estritamente um JSON no seguinte formato válido, sem formatação markdown em volta:
-    {
-        "B": [num1, num2, num3, num4, num5],
-        "I": [num1, num2, num3, num4, num5],
-        "N": [num1, num2, num3, num4, num5],
-        "G": [num1, num2, num3, num4, num5],
-        "O": [num1, num2, num3, num4, num5]
-    }
-    """
-
-    imagem_part = types.Part.from_bytes(
-        data=imagem_bytes,
-        mime_type="image/jpeg",
-    )
-
+    """Lê os números da cartela utilizando OCR local (EasyOCR + OpenCV)."""
     try:
-        response = client.models.generate_content(
-            model="gemini-3.8-flash", contents=[imagem_part, prompt]
+        reader = carregar_leitor_ocr()
+
+        # Decodifica os bytes da imagem para o formato OpenCV
+        file_bytes = np.asarray(bytearray(imagem_bytes), dtype=uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+        # 1. Pré-processamento da imagem para destacar os números
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Aplica um filtro de nitidez/contraste suave
+        thresh = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 11, 2
         )
 
-        texto_limpo = (
-            response.text.strip().replace("```json", "").replace("```", "")
-        )
-        dados = json.loads(texto_limpo)
+        # 2. Executa o OCR na imagem tratada
+        # detail=0 retorna apenas os textos encontrados
+        # allowlist='0123456789' força a leitura apenas de dígitos
+        resultados = reader.readtext(thresh, detail=0, allowlist='0123456789')
+
+        # Filtrar apenas valores que sejam números válidos de bingo (1 a 75)
+        numeros_encontrados = []
+        for texto in resultados:
+            if texto.isdigit():
+                val = int(texto)
+                if 1 <= val <= 75:
+                    numeros_encontrados.append(val)
+
+        # Uma cartela de bingo 75 possui exatamente 25 números (ou 24 se o centro for livre)
+        if len(numeros_encontrados) < 20:
+            st.warning("Poucos números foram identificados claramente. Tente tirar a foto mais de perto, com boa iluminação e bem enquadrada.")
+            return None
+
+        # Organiza os números lidos nas 5 colunas B, I, N, G, O
+        # Ajusta para pegar os primeiros 25 números em sequência
+        nums = numeros_encontrados[:25]
+        
+        dados = {
+            "B": nums[0:5],
+            "I": nums[5:10],
+            "N": nums[10:15],
+            "G": nums[15:20],
+            "O": nums[20:25]
+        }
+
         return dados
-    except Exception as e:
-        st.error(f"Erro ao ler imagem com IA: {e}")
-        return None
 
+    except Exception as e:
+        st.error(f"Erro no processamento OCR da imagem: {e}")
+        return None
 
 
 
