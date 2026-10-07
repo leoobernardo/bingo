@@ -72,7 +72,8 @@ if "cartelas" not in st.session_state:
 
 # --- FUNÇÃO DE LEITURA COM GEMINI VISION ---
 def ler_cartela_com_ia(imagem_bytes):
-    """Envia a foto para a API do Gemini processar os números da cartela com fallback total."""
+def ler_cartela_com_ia(imagem_bytes):
+    """Envia a foto para a API do Gemini processar os números da cartela."""
     api_key = os.environ.get(
         "GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "")
     )
@@ -82,9 +83,8 @@ def ler_cartela_com_ia(imagem_bytes):
         )
         return None
 
-    client = genai.Client(
-        api_key=api_key, http_options=types.HttpOptions(api_version="v1")
-    )
+    # Inicializa o cliente padrão da SDK
+    client = genai.Client(api_key=api_key)
 
     prompt = """
     Examine esta imagem de uma cartela de bingo tradicional de 75 bolas.
@@ -105,16 +105,9 @@ def ler_cartela_com_ia(imagem_bytes):
         mime_type="image/jpeg",
     )
 
-    # Lista de modelos aceitos na API em ordem de prioridade
-    modelos = [
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash",
-    ]
+    # Nomes oficiais válidos na SDK atual
+    modelos = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
 
-    # Guarda o último erro apenas para exibição se todos os modelos falharem
     ultimo_erro = None
 
     for modelo in modelos:
@@ -129,12 +122,12 @@ def ler_cartela_com_ia(imagem_bytes):
             dados = json.loads(texto_limpo)
             return dados
         except Exception as e:
-            # Em caso de qualquer erro (404, 503, nome de modelo antigo, etc.), registra e tenta o próximo
             ultimo_erro = e
             continue
 
-    st.error(f"Não foi possível processar a foto. Erro: {ultimo_erro}")
+    st.error(f"Erro ao ler imagem com IA: {ultimo_erro}")
     return None
+
 
 
 
