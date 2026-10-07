@@ -299,28 +299,48 @@ elif menu == "Cadastro Manual":
 
 
 # --- TELA DE SORTEIO (MATRIZ REAL 5 COLUNAS X 15 LINHAS) ---
+# --- TELA DE SORTEIO (GRADE ULTRACOMPACTA 5x15) ---
 elif menu == "Acompanhar Sorteio":
-    # Força as colunas do Streamlit a ficarem lado a lado mesmo no celular
+    # CSS agressivo para reduzir botões, margens e espaçamentos no mobile
     st.markdown(
         """
         <style>
-        /* Desativa o empilhamento automático em telas pequenas */
+        /* Remove margens da página principal */
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 1rem !important;
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
+            max-width: 100% !important;
+        }
+
+        /* Força alinhamento em 5 colunas horizontais */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
-            gap: 2px !important;
+            gap: 1px !important;
+            margin-bottom: 2px !important;
         }
+
         [data-testid="column"] {
             width: 20% !important;
             flex: 1 1 20% !important;
             min-width: 0px !important;
+            padding: 0px !important;
         }
+
+        /* Estilização dos Botões dos Números */
         div.stButton > button {
-            padding: 2px 0px !important;
+            padding: 0px !important;
             font-size: 11px !important;
-            min-height: 32px !important;
+            font-weight: bold !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            line-height: 26px !important;
             margin: 0px !important;
+            border-radius: 3px !important;
+            border: 1px solid #333 !important;
         }
         </style>
     """,
@@ -329,23 +349,18 @@ elif menu == "Acompanhar Sorteio":
 
     st.subheader("🎯 Painel de Sorteio")
 
-    # Cabeçalho fixo das 5 colunas B - I - N - G - O
+    # Cabeçalho B - I - N - G - O
     letras = ["B", "I", "N", "G", "O"]
     cols_header = st.columns(5)
     for idx, letra in enumerate(letras):
         cols_header[idx].markdown(
-            f"<h4 style='text-align: center; margin: 0;'>{letra}</h4>",
+            f"<div style='text-align: center; font-weight: bold; font-size: 16px;'>{letra}</div>",
             unsafe_allow_html=True,
         )
 
-    st.write("")
-
-    # Linha por linha (1 a 15) preenchendo as 5 colunas simultaneamente
+    # Matriz 5x15 de botões compactos
     for i in range(15):
         cols = st.columns(5)
-
-        # Para cada linha i:
-        # B = 1 + i, I = 16 + i, N = 31 + i, G = 46 + i, O = 61 + i
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
 
         for col_idx, n in enumerate(numeros_linha):
