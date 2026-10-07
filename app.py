@@ -106,7 +106,7 @@ def ler_cartela_com_ia(imagem_bytes):
         )
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=[imagem_part, prompt]
+            model="gemini-1.5-flash", contents=[imagem_part, prompt]
         )
 
         texto_limpo = (
