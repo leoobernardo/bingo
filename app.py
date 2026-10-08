@@ -3,9 +3,14 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
+import requests
 import streamlit as st
 
-ARQUIVO_DADOS = "bingo_dados.json"
+# --- CONFIGURAÇÃO DO JSONBIN.IO (BANCO DE DADOS NA NUVEM) ---
+BIN_ID = "6ac7ac88ac6210605a1fd30d"
+API_KEY = "$2a$10$sE54RfWHhHsIv3QwClCABe/sNc4rWPIAVGyqu/yYHSzEjMIlsmtta"
+
+URL_BIN = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
 
 REGRAS_COLUNAS = {
     "B": (1, 15),
@@ -20,31 +25,32 @@ st.set_page_config(
 )
 
 
-# --- PERSISTÊNCIA DE DADOS ---
+# --- GERENCIAMENTO DE DADOS NA NUVEM ---
 def carregar_dados():
-    if os.path.exists(ARQUIVO_DADOS):
-        try:
-            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                return (
-                    {
-                        nome: set(nums)
-                        for nome, nums in dados.get("cartelas", {}).items()
-                    },
-                    {
-                        nome: set(nums)
-                        for nome, nums in dados.get(
-                            "cartelas_originais", {}
-                        ).items()
-                    },
-                    dados.get("sorteados", []),
-                )
-        except Exception:
-            pass
+    headers = {"X-Master-Key": API_KEY}
+    try:
+        response = requests.get(f"{URL_BIN}/latest", headers=headers)
+        if response.status_code == 200:
+            dados = response.json().get("record", {})
+            cartelas = {
+                nome: set(nums)
+                for nome, nums in dados.get("cartelas", {}).items()
+            }
+            cartelas_originais = {
+                nome: set(nums)
+                for nome, nums in dados.get(
+                    "cartelas_originais", {}
+                ).items()
+            }
+            sorteados = dados.get("sorteados", [])
+            return cartelas, cartelas_originais, sorteados
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da nuvem: {e}")
     return {}, {}, []
 
 
 def salvar_dados():
+    headers = {"Content-Type": "application/json", "X-Master-Key": API_KEY}
     dados = {
         "cartelas": {
             nome: list(nums)
@@ -56,10 +62,13 @@ def salvar_dados():
         },
         "sorteados": st.session_state.sorteados,
     }
-    with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
-        json.dump(dados, f, indent=4, ensure_ascii=False)
+    try:
+        requests.put(URL_BIN, json=dados, headers=headers)
+    except Exception as e:
+        st.error(f"Erro ao salvar dados na nuvem: {e}")
 
 
+# Inicializa os dados puxando da nuvem
 if "cartelas" not in st.session_state:
     (
         st.session_state.cartelas,
@@ -68,7 +77,7 @@ if "cartelas" not in st.session_state:
     ) = carregar_dados()
 
 
-# --- OCR & PROCESSAMENTO ---
+# --- OCR & PROCESSAMENTO DE IMAGEM ---
 def redimensionar_imagem(img, largura_max=600):
     altura, largura = img.shape[:2]
     if largura > largura_max:
@@ -165,9 +174,8 @@ if menu == "Menu Principal":
         st.session_state.cartelas.clear()
         st.session_state.cartelas_originais.clear()
         st.session_state.sorteados.clear()
-        if os.path.exists(ARQUIVO_DADOS):
-            os.remove(ARQUIVO_DADOS)
-        st.success("Dados apagados.")
+        salvar_dados()
+        st.success("Dados apagados da nuvem.")
         st.rerun()
 
 elif menu == "Cadastrar por Foto (IA)":
@@ -214,7 +222,7 @@ elif menu == "Cadastrar por Foto (IA)":
         col1, col2 = st.columns(2)
         with col1:
             if st.button(
-                "✅ Salvar", type="primary", use_container_width=True
+                "✅ Salvar na Nuvem", type="primary", use_container_width=True
             ):
                 if len(numeros_finais) != 25 or not validacao_ok:
                     st.error("Cartela inválida! Verifique os números.")
@@ -229,7 +237,7 @@ elif menu == "Cadastrar por Foto (IA)":
                         st.session_state.cartelas[nome_cartela].discard(s)
                     salvar_dados()
                     del st.session_state["cartela_temp"]
-                    st.success("Salvo com sucesso!")
+                    st.success("Cartela salva na nuvem com sucesso!")
                     st.rerun()
         with col2:
             if st.button("❌ Descartar", use_container_width=True):
@@ -256,24 +264,21 @@ elif menu == "Cadastro Manual":
             st.session_state.cartelas_originais[nome] = set(nums_selecionados)
             st.session_state.cartelas[nome] = set(nums_selecionados)
             salvar_dados()
-            st.success("Salvo!")
+            st.success("Salvo na nuvem com sucesso!")
 
-# --- TELA DE SORTEIO (SELEÇÃO DIRETA COMPACTA) ---
+# --- TELA DE SORTEIO (GRADE NATIVA COMPACTA) ---
 elif menu == "Acompanhar Sorteio":
     st.subheader("🎯 Painel de Sorteio")
 
-    # Injeção de CSS global forçando botões minúsculos em grelha
     st.html(
         """
         <style>
-        /* Reduz padding e margens globais */
         .stAppHeader, .stMainBlockContainer {
             padding-left: 2px !important;
             padding-right: 2px !important;
             padding-top: 2rem !important;
         }
 
-        /* Garante 5 colunas estritas na horizontal */
         [data-testid="stHorizontalBlock"] {
             display: grid !important;
             grid-template-columns: repeat(5, 1fr) !important;
@@ -287,7 +292,6 @@ elif menu == "Acompanhar Sorteio":
             padding: 0px !important;
         }
 
-        /* Torna os botões minúsculos como quadradinhos */
         button[kind="secondary"], button[kind="primary"] {
             padding: 0px !important;
             height: 26px !important;
@@ -301,7 +305,6 @@ elif menu == "Acompanhar Sorteio":
         """
     )
 
-    # Cabeçalho B - I - N - G - O
     cols_header = st.columns(5)
     for idx, letra in enumerate(["B", "I", "N", "G", "O"]):
         cols_header[idx].markdown(
@@ -311,7 +314,6 @@ elif menu == "Acompanhar Sorteio":
 
     st.write("")
 
-    # Matriz 5x15 de botões nativos
     for i in range(15):
         cols = st.columns(5)
         numeros_linha = [1 + i, 16 + i, 31 + i, 46 + i, 61 + i]
